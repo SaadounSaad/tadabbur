@@ -1,26 +1,127 @@
+@import url("https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&display=swap");
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gold: #c4a35a;
+  --gold-light: #d4b86a;
+  --gold-dark: #8b7355;
+  --cream: #f5f0e8;
+  --cream-dark: #ede7d9;
+  --ink: #2c1810;
+  --ink-light: #4a3728;
+  --text-muted: #7a6a5a;
+  --border: #d4c9b0;
+  --surface: #faf7f2;
+}
+
+.dark {
+  --cream: #1a1a2e;
+  --cream-dark: #16213e;
+  --ink: #e8dcc8;
+  --ink-light: #c8b89a;
+  --text-muted: #8899aa;
+  --border: #3a4060;
+  --surface: #1e2040;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--cream);
+  --color-foreground: var(--ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--cream);
+  color: var(--ink);
+  font-family: "Cormorant Garamond", "Georgia", serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
+}
+
+/* Islamic geometric SVG pattern */
+.pattern-bg {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Cpath d='M40 5 L75 40 L40 75 L5 40 Z' fill='none' stroke='%23c4a35a' stroke-width='0.4' opacity='0.12'/%3E%3Cpath d='M40 20 L60 40 L40 60 L20 40 Z' fill='none' stroke='%23c4a35a' stroke-width='0.4' opacity='0.1'/%3E%3Ccircle cx='40' cy='40' r='10' fill='none' stroke='%23c4a35a' stroke-width='0.4' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+/* Arabic text */
+.font-arabic {
+  font-family: "Amiri", "Traditional Arabic", serif;
+  direction: rtl;
+  line-height: 2;
+}
+
+.arabic-verse {
+  font-family: "Amiri", serif;
+  direction: rtl;
+  text-align: center;
+  font-size: 1.5rem;
+  line-height: 2.5;
+  color: var(--ink);
+}
+
+/* Gold decorators */
+.gold-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--gold);
+}
+
+.gold-divider::before,
+.gold-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold), transparent);
+}
+
+/* Stream text reveal animation */
+@keyframes textReveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stream-char {
+  animation: textReveal 0.15s ease forwards;
+}
+
+/* Pulse for loading */
+@keyframes gentlePulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.loading-dot {
+  animation: gentlePulse 1.5s ease-in-out infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--cream-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gold-dark);
+  border-radius: 3px;
+}
+
+/* Quran bracket styling */
+.quran-bracket {
+  color: var(--gold-dark);
+  font-family: "Amiri", serif;
 }
