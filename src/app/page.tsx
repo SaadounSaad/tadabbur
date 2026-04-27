@@ -70,6 +70,28 @@ export default function Home() {
         return updated;
       });
       setActiveHistoryId(item.id);
+
+      // Persist to R2 (fire-and-forget)
+      fetch("/api/results/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: item.id,
+          surah: req.surah,
+          surahNumber: req.surahNumber,
+          verseRange: item.verseRange,
+          fromVerse: req.fromVerse,
+          toVerse: req.toVerse,
+          depth: req.depth,
+          tafsirs: req.tafsirs,
+          timestamp: item.timestamp,
+          text: completedText,
+          resolvedVerses: completedVerses,
+          contextTafsirs: completedTafsirs,
+          crossReferences: req.crossReferences,
+        }),
+      }).catch(() => {});
+
       return req;
     });
   }, []);
@@ -77,6 +99,7 @@ export default function Home() {
   const { text, isStreaming, error, done, resolvedVerses, contextTafsirs, startTadabbur, reset, restore } = useTadabbur(handleComplete);
 
   useEffect(() => {
+    // Load from localStorage first (fast)
     try {
       const h = localStorage.getItem("td:history");
       if (h) {
@@ -94,6 +117,48 @@ export default function Home() {
     } catch {
       localStorage.removeItem("td:history");
     }
+
+    // Then load from R2 (slower, but more complete)
+    fetch("/api/results/load")
+      .then(r => r.json())
+      .then((remoteResults: any[]) => {
+        if (!Array.isArray(remoteResults) || remoteResults.length === 0) return;
+        setHistory(prev => {
+          const merged = [...prev];
+          const existingIds = new Set(merged.map(i => i.id));
+          for (const rr of remoteResults) {
+            if (!existingIds.has(rr.id)) {
+              merged.push({
+                id: rr.id,
+                surah: rr.surah,
+                verseRange: rr.verseRange,
+                depth: rr.depth,
+                timestamp: rr.timestamp,
+                text: rr.text,
+                request: {
+                  verses: [],
+                  surah: rr.surah,
+                  surahNumber: rr.surahNumber,
+                  verseNumbers: Array.from({ length: (rr.toVerse - rr.fromVerse + 1) }, (_, i) => rr.fromVerse + i),
+                  fromVerse: rr.fromVerse,
+                  toVerse: rr.toVerse,
+                  depth: rr.depth,
+                  tafsirs: rr.tafsirs || [],
+                  crossReferences: rr.crossReferences,
+                },
+                resolvedVerses: rr.resolvedVerses,
+                contextTafsirs: rr.contextTafsirs,
+              });
+              existingIds.add(rr.id);
+            }
+          }
+          const updated = merged.slice(0, 20);
+          localStorage.setItem("td:history", JSON.stringify(updated));
+          return updated;
+        });
+      })
+      .catch(() => {});
+
     const d = localStorage.getItem("td:density") as "airy" | "compact" | null;
     if (d) setDensity(d);
     const f = localStorage.getItem("td:font") as "amiri" | "naskh" | null;

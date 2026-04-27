@@ -1,7 +1,7 @@
 # Suivi du projet — Tadabbur تدبّر
 
 Outil de contemplation coranique basé sur la méthodologie de Farid Al-Ansari.
-**Stack :** Next.js 15 · TypeScript · Tailwind v4 · Anthropic SDK (claude-sonnet-4-6)
+**Stack :** Next.js 16 · TypeScript · Tailwind v4 · Anthropic SDK (claude-sonnet-4-6) · Cloudflare R2
 
 ---
 
@@ -110,6 +110,19 @@ Outil de contemplation coranique basé sur la méthodologie de Farid Al-Ansari.
 - [x] `src/lib/tadabbur-cache.ts` — cache in-memory clé = hash(surah+verses+depth+tafsirs+crossRefs), TTL 24h
 - [x] `route.ts` — vérification cache avant appel API, replay SSE si HIT, stockage après message_stop si MISS
 - [x] Header `X-Cache: HIT/MISS` dans la réponse SSE
+
+### Phase 10 — Migration Cloudflare R2 + Déploiement Vercel (2026-04-27)
+- [x] `src/lib/data-cache.ts` — abstraction lecture fichiers : local `data/` ou R2 `/tmp/` sur Vercel
+- [x] `src/lib/quran-loader.ts` — adapté pour utiliser `readDataFile()`
+- [x] `src/lib/tafsir-loader.ts` — adapté pour utiliser `readDataFile()` / `dataFileExists()` / `dataFileSize()`
+- [x] `scripts/upload-to-r2.ts` — upload récursif `data/` → Cloudflare R2 (571 fichiers, 0 échec)
+- [x] Bucket R2 `tadabbur-data` créé, accès public activé
+- [x] `.env.local` — configuré avec clés R2 + URL publique
+- [x] `.gitignore` — `data/` et `.env*.local` exclus du git
+- [x] GitHub repo `SaadounSaad/tadabbur` — push réussi
+- [x] Vercel déployé → **https://tadabbur-rouge.vercel.app/** ✅
+- [x] Variables d'env Vercel : `ANTHROPIC_API_KEY` + `R2_PUBLIC_URL`
+- [x] Test API sur Vercel : 200 OK, cache MISS, rate limiting actif
 
 #### Non traité (hors scope ou complexe)
 - ~~Rate limiting APIs~~ ✅ implémenté
