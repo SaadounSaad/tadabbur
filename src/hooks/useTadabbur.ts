@@ -1,46 +1,73 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import type { TafsirName } from "@/lib/tafsir-loader";
+import type { BahoussVerse } from "@/lib/bahouss-parser";
 
-interface TadabburRequest {
+export type Depth = "brief" | "medium" | "detailed";
+export type { TafsirName };
+
+export interface TafsirSource {
+  name: string;
+  labelAr: string;
+  content: string;
+}
+
+export interface SubmitData {
   verses: string[];
   surah: string;
   surahNumber: number;
   verseNumbers: number[];
-  language: "ar" | "fr" | "both";
+  fromVerse: number;
+  toVerse: number;
+  depth: Depth;
+  tafsirs: TafsirName[];
+  crossReferences?: BahoussVerse[];
 }
+
+export type OnCompleteCallback = (text: string, resolvedVerses: string[] | null, contextTafsirs: TafsirSource[]) => void;
 
 interface TadabburState {
   text: string;
   isStreaming: boolean;
   error: string | null;
   done: boolean;
+  resolvedVerses: string[] | null;
+  contextTafsirs: TafsirSource[];
 }
 
-export function useTadabbur() {
+export function useTadabbur(onComplete?: OnCompleteCallback) {
   const [state, setState] = useState<TadabburState>({
-    text: "",
-    isStreaming: false,
-    error: null,
-    done: false,
+    text: "", isStreaming: false, error: null, done: false, resolvedVerses: null, contextTafsirs: [],
   });
 
-  const startTadabbur = useCallback(async (request: TadabburRequest) => {
-    setState({ text: "", isStreaming: true, error: null, done: false });
+  const textRef = useRef("");
+  const resolvedVersesRef = useRef<string[] | null>(null);
+  const contextTafsirsRef = useRef<TafsirSource[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+
+  const startTadabbur = useCallback(async (request: SubmitData) => {
+    abortRef.current?.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    textRef.current = "";
+    resolvedVersesRef.current = null;
+    contextTafsirsRef.current = [];
+    setState({ text: "", isStreaming: true, error: null, done: false, resolvedVerses: null, contextTafsirs: [] });
 
     try {
       const res = await fetch("/api/tadabbur", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
+        signal: abort.signal,
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Request failed" }));
-        setState((s) => ({
-          ...s,
-          isStreaming: false,
-          error: err.error || "حدث خطأ",
-        }));
+        setState(s => ({ ...s, isStreaming: false, error: err.error || "حدث خطأ" }));
         return;
       }
 
@@ -62,37 +89,46 @@ export function useTadabbur() {
           if (!line.startsWith("data: ")) continue;
           const data = line.slice(6).trim();
           if (!data) continue;
-
           try {
             const parsed = JSON.parse(data);
-            if (parsed.type === "text") {
-              setState((s) => ({ ...s, text: s.text + parsed.text }));
+            if (parsed.type === "context") {
+              contextTafsirsRef.current = parsed.tafsirs;
+              setState(s => ({ ...s, contextTafsirs: parsed.tafsirs }));
+            } else if (parsed.type === "verses") {
+              resolvedVersesRef.current = parsed.verses;
+              setState(s => ({ ...s, resolvedVerses: parsed.verses }));
+            } else if (parsed.type === "text") {
+              textRef.current += parsed.text;
+              setState(s => ({ ...s, text: s.text + parsed.text }));
             } else if (parsed.type === "done") {
-              setState((s) => ({ ...s, isStreaming: false, done: true }));
+              setState(s => ({ ...s, isStreaming: false, done: true }));
+              onComplete?.(textRef.current, resolvedVersesRef.current, contextTafsirsRef.current);
             } else if (parsed.type === "error") {
-              setState((s) => ({
-                ...s,
-                isStreaming: false,
-                error: parsed.message,
-              }));
+              setState(s => ({ ...s, isStreaming: false, error: parsed.message }));
             }
-          } catch {
-            // Ignore parse errors for partial chunks
-          }
+          } catch { /* ignore partial chunks */ }
         }
       }
     } catch (err) {
-      setState((s) => ({
-        ...s,
-        isStreaming: false,
+      if (err instanceof Error && err.name === "AbortError") return;
+      setState(s => ({
+        ...s, isStreaming: false,
         error: err instanceof Error ? err.message : "خطأ في الاتصال",
       }));
     }
-  }, []);
+  }, [onComplete]);
 
   const reset = useCallback(() => {
-    setState({ text: "", isStreaming: false, error: null, done: false });
+    abortRef.current?.abort();
+    textRef.current = "";
+    resolvedVersesRef.current = null;
+    contextTafsirsRef.current = [];
+    setState({ text: "", isStreaming: false, error: null, done: false, resolvedVerses: null, contextTafsirs: [] });
   }, []);
 
-  return { ...state, startTadabbur, reset };
+  const restore = useCallback((text: string, resolvedVerses?: string[] | null, contextTafsirs?: TafsirSource[]) => {
+    setState({ text, isStreaming: false, error: null, done: true, resolvedVerses: resolvedVerses ?? null, contextTafsirs: contextTafsirs ?? [] });
+  }, []);
+
+  return { ...state, startTadabbur, reset, restore };
 }

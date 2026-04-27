@@ -1,0 +1,77 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsx *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "WebFetch(domain:shamela.ws)",
+      "Bash(npm install *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebSearch",
+      "Bash(python3 *)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(where py *)",
+      "Bash(C:\\\\Python314\\\\python.exe *)",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" \"C:\\\\Mes Projets\\\\tadabbur\\\\scripts\\\\inspect-master.py\")",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" \"C:\\\\Mes Projets\\\\tadabbur\\\\scripts\\\\inspect-master.py\" 2>&1)",
+      "Read(//c/shamela4/**)",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" -m pip install jpype1 2>&1 | Select-Object -Last 5)",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" \"C:\\\\Mes Projets\\\\tadabbur\\\\scripts\\\\read-lucene.py\" 2>&1 | Select-Object -First 50)",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" \"C:\\\\Mes Projets\\\\tadabbur\\\\scripts\\\\read-lucene.py\" 2>&1 | Select-Object -Last 5)",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" \"C:\\\\Mes Projets\\\\tadabbur\\\\scripts\\\\read-lucene.py\" 2>&1 | Select-Object -Last 3)",
+      "PowerShell(& \"C:\\\\Python314\\\\python.exe\" \"C:\\\\Mes Projets\\\\tadabbur\\\\scripts\\\\extract-tafsir.py\" 2>&1)",
+      "PowerShell(& \"C:\\\\platform-tools\\\\adb.exe\" shell \"ls /data/data/net.dorar.tafseer/\")",
+      "PowerShell(& \"C:\\\\platform-tools\\\\adb.exe\" shell \"ls /sdcard/Android/data/net.dorar.tafseer/\" 2>&1)",
+      "PowerShell(& \"C:\\\\platform-tools\\\\adb.exe\" shell \"find /sdcard/Android/data/net.dorar.tafseer/ -type f\" 2>&1 | Select-Object -First 40)",
+      "PowerShell(& \"C:\\\\platform-tools\\\\adb.exe\" shell \"ls -la /sdcard/Android/data/net.dorar.tafseer/files/\" 2>&1)",
+      "PowerShell(& \"C:\\\\platform-tools\\\\adb.exe\" backup -f \"C:\\\\Mes Projets\\\\tadabbur\\\\data\\\\tafsir\\\\dorar-backup.ab\" -noapk net.dorar.tafseer 2>&1)",
+      "WebFetch(domain:dorar.net)",
+      "WebFetch(domain:api.quran-tafseer.com)",
+      "Bash(python *)",
+      "Bash(node -e \"const q = require\\('./data/quran/quran.json'\\); const keys = Object.keys\\(q\\); console.log\\('Keys type:', typeof keys[0], keys.slice\\(0,3\\)\\); const first = q[keys[0]]; console.log\\('First entry:', JSON.stringify\\(first\\).slice\\(0,200\\)\\);\")",
+      "WebFetch(domain:www.islamweb.net)",
+      "Bash(node -e ' *)",
+      "Bash(node fix-regex.cjs)",
+      "Bash(node -e \"const {Document} = require\\('docx'\\); console.log\\('ok'\\);\")",
+      "Bash(node -e \"const d = require\\('docx'\\); console.log\\(Object.keys\\(d\\).filter\\(k => /Tab|Border|Shad|Align|Spacing/.test\\(k\\)\\).join\\('\\\\n'\\)\\);\")"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST \"http://localhost:${MCP_VOICE_HOOKS_PORT:-5111}/api/hooks/stop\" || echo '{}'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "_voice-hooks__speak$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST \"http://localhost:${MCP_VOICE_HOOKS_PORT:-5111}/api/hooks/pre-speak\" || echo '{}'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(?!.*_voice-hooks__)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST \"http://localhost:${MCP_VOICE_HOOKS_PORT:-5111}/api/hooks/post-tool\" || echo '{}'"
+          }
+        ]
+      }
+    ]
+  }
+}

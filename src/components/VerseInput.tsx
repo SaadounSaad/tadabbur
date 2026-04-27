@@ -1,288 +1,244 @@
 "use client";
 import { useState } from "react";
+import type { SubmitData, TafsirName } from "@/hooks/useTadabbur";
+
+const TAFSIRS: { name: TafsirName; labelAr: string }[] = [
+  { name: "ibn-achour",  labelAr: "ابن عاشور" },
+  { name: "muharrar",    labelAr: "المحرر" },
+  { name: "tabari",      labelAr: "الطبري" },
+  { name: "fakhri-razi", labelAr: "الفخر الرازي" },
+  { name: "ibn-kathir",  labelAr: "ابن كثير" },
+];
+
+// [surahNumber, nameAr, verseCount]
+const SURAHS: [number, string, number][] = [
+  [1,"الفاتحة",7],[2,"البقرة",286],[3,"آل عمران",200],[4,"النساء",176],
+  [5,"المائدة",120],[6,"الأنعام",165],[7,"الأعراف",206],[8,"الأنفال",75],
+  [9,"التوبة",129],[10,"يونس",109],[11,"هود",123],[12,"يوسف",111],
+  [13,"الرعد",43],[14,"إبراهيم",52],[15,"الحجر",99],[16,"النحل",128],
+  [17,"الإسراء",111],[18,"الكهف",110],[19,"مريم",98],[20,"طه",135],
+  [21,"الأنبياء",112],[22,"الحج",78],[23,"المؤمنون",118],[24,"النور",64],
+  [25,"الفرقان",77],[26,"الشعراء",227],[27,"النمل",93],[28,"القصص",88],
+  [29,"العنكبوت",69],[30,"الروم",60],[31,"لقمان",34],[32,"السجدة",30],
+  [33,"الأحزاب",73],[34,"سبأ",54],[35,"فاطر",45],[36,"يس",83],
+  [37,"الصافات",182],[38,"ص",88],[39,"الزمر",75],[40,"غافر",85],
+  [41,"فصلت",54],[42,"الشورى",53],[43,"الزخرف",89],[44,"الدخان",59],
+  [45,"الجاثية",37],[46,"الأحقاف",35],[47,"محمد",38],[48,"الفتح",29],
+  [49,"الحجرات",18],[50,"ق",45],[51,"الذاريات",60],[52,"الطور",49],
+  [53,"النجم",62],[54,"القمر",55],[55,"الرحمن",78],[56,"الواقعة",96],
+  [57,"الحديد",29],[58,"المجادلة",22],[59,"الحشر",24],[60,"الممتحنة",13],
+  [61,"الصف",14],[62,"الجمعة",11],[63,"المنافقون",11],[64,"التغابن",18],
+  [65,"الطلاق",12],[66,"التحريم",12],[67,"الملك",30],[68,"القلم",52],
+  [69,"الحاقة",52],[70,"المعارج",44],[71,"نوح",28],[72,"الجن",28],
+  [73,"المزمل",20],[74,"المدثر",56],[75,"القيامة",40],[76,"الإنسان",31],
+  [77,"المرسلات",50],[78,"النبأ",40],[79,"النازعات",46],[80,"عبس",42],
+  [81,"التكوير",29],[82,"الانفطار",19],[83,"المطففين",36],[84,"الانشقاق",25],
+  [85,"البروج",22],[86,"الطارق",17],[87,"الأعلى",19],[88,"الغاشية",26],
+  [89,"الفجر",30],[90,"البلد",20],[91,"الشمس",15],[92,"الليل",21],
+  [93,"الضحى",11],[94,"الشرح",8],[95,"التين",8],[96,"العلق",19],
+  [97,"القدر",5],[98,"البينة",8],[99,"الزلزلة",8],[100,"العاديات",11],
+  [101,"القارعة",11],[102,"التكاثر",8],[103,"العصر",3],[104,"الهمزة",9],
+  [105,"الفيل",5],[106,"قريش",4],[107,"الماعون",7],[108,"الكوثر",3],
+  [109,"الكافرون",6],[110,"النصر",3],[111,"المسد",5],[112,"الإخلاص",4],
+  [113,"الفلق",5],[114,"الناس",6],
+];
+
 
 interface VerseInputProps {
-  onSubmit: (data: {
-    verses: string[];
-    surah: string;
-    surahNumber: number;
-    verseNumbers: number[];
-    language: "ar" | "fr" | "both";
-  }) => void;
+  onSubmit: (data: SubmitData) => void;
   loading: boolean;
 }
 
 export default function VerseInput({ onSubmit, loading }: VerseInputProps) {
-  const [surah, setSurah] = useState("");
-  const [surahNumber, setSurahNumber] = useState<number>(1);
-  const [verseStart, setVerseStart] = useState<number>(1);
-  const [verseEnd, setVerseEnd] = useState<number>(1);
-  const [manualVerses, setManualVerses] = useState("");
-  const [useManual, setUseManual] = useState(false);
-  const [language, setLanguage] = useState<"ar" | "fr" | "both">("ar");
+  const [tab, setTab] = useState<"surah" | "text">("surah");
+  const [surahIdx, setSurahIdx] = useState(1);
+  const [verseFrom, setVerseFrom] = useState(255);
+  const [verseTo, setVerseTo] = useState(257);
+  const [manualText, setManualText] = useState("");
+  const [manualStart, setManualStart] = useState(1);
+  const [depth, setDepth] = useState<"brief" | "medium" | "detailed">("medium");
+  const [selectedTafsirs, setSelectedTafsirs] = useState<TafsirName[]>(["ibn-kathir"]);
+
+  function toggleTafsir(name: TafsirName) {
+    setSelectedTafsirs(prev =>
+      prev.includes(name) ? prev.filter(t => t !== name) : [...prev, name]
+    );
+  }
+
+  const selectedSurah = SURAHS[surahIdx];
+  const maxVerse = selectedSurah[2];
+
+  function changeSurah(idx: number) {
+    setSurahIdx(idx);
+    const total = SURAHS[idx][2];
+    setVerseFrom(1);
+    setVerseTo(Math.min(5, total));
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    let verses: string[];
+    let verseNumbers: number[];
 
-    let verses: string[] = [];
-    let verseNumbers: number[] = [];
-
-    if (useManual) {
-      verses = manualVerses
-        .split("\n")
-        .map((v) => v.trim())
-        .filter(Boolean);
-      verseNumbers = verses.map((_, i) => verseStart + i);
+    if (tab === "text") {
+      verses = manualText.split("\n").map(v => v.trim()).filter(Boolean).slice(0, 10);
+      verseNumbers = verses.map((_, i) => manualStart + i);
     } else {
-      // Placeholder — user pastes verse text per number range
-      const count = Math.max(1, verseEnd - verseStart + 1);
-      verses = Array.from({ length: count }, (_, i) => `[الآية ${verseStart + i}]`);
-      verseNumbers = Array.from({ length: count }, (_, i) => verseStart + i);
+      const count = Math.max(1, Math.min(verseTo - verseFrom + 1, 10));
+      verses = Array.from({ length: count }, (_, i) => `[الآية ${verseFrom + i}]`);
+      verseNumbers = Array.from({ length: count }, (_, i) => verseFrom + i);
     }
 
-    if (verses.length === 0 || verses.length > 10) return;
+    if (verses.length === 0) return;
 
     onSubmit({
       verses,
-      surah: surah || `السورة ${surahNumber}`,
-      surahNumber,
+      surah: selectedSurah[1],
+      surahNumber: selectedSurah[0],
       verseNumbers,
-      language,
+      fromVerse: verseNumbers[0],
+      toVerse: verseNumbers[verseNumbers.length - 1],
+      depth,
+      tafsirs: selectedTafsirs,
     });
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="w-full max-w-2xl mx-auto space-y-6"
-      dir="rtl"
-    >
-      {/* Surah selector */}
-      <div className="space-y-2">
-        <label
-          className="block font-arabic text-sm"
-          style={{ color: "var(--gold-dark)" }}
-        >
-          اسم السورة ورقمها
-        </label>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={surah}
-            onChange={(e) => setSurah(e.target.value)}
-            placeholder="مثال: الفاتحة"
-            className="flex-1 px-4 py-3 rounded-lg font-arabic text-base"
-            style={{
-              background: "var(--surface, var(--cream-dark))",
-              border: "1px solid var(--border, var(--gold-dark))",
-              color: "var(--ink)",
-            }}
-            dir="rtl"
-          />
-          <input
-            type="number"
-            min={1}
-            max={114}
-            value={surahNumber}
-            onChange={(e) => setSurahNumber(Number(e.target.value))}
-            placeholder="رقم"
-            className="w-20 px-3 py-3 rounded-lg text-center"
-            style={{
-              background: "var(--surface, var(--cream-dark))",
-              border: "1px solid var(--border, var(--gold-dark))",
-              color: "var(--ink)",
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Input mode toggle */}
-      <div className="flex gap-4 items-center">
-        <span className="font-arabic text-sm" style={{ color: "var(--text-muted)" }}>
-          طريقة الإدخال:
-        </span>
-        <button
-          type="button"
-          onClick={() => setUseManual(false)}
-          className="px-3 py-1.5 rounded-full text-sm font-arabic transition-all"
-          style={{
-            background: !useManual ? "var(--gold)" : "transparent",
-            color: !useManual ? "#fff" : "var(--text-muted)",
-            border: "1px solid var(--gold)",
-          }}
-        >
-          نطاق الآيات
+    <form onSubmit={handleSubmit} dir="rtl">
+      <div className="form-tabs">
+        <button type="button" className={`form-tab${tab === "surah" ? " active" : ""}`} onClick={() => setTab("surah")}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 4v16"/></svg>
+          سُورةٌ وآيات
         </button>
-        <button
-          type="button"
-          onClick={() => setUseManual(true)}
-          className="px-3 py-1.5 rounded-full text-sm font-arabic transition-all"
-          style={{
-            background: useManual ? "var(--gold)" : "transparent",
-            color: useManual ? "#fff" : "var(--text-muted)",
-            border: "1px solid var(--gold)",
-          }}
-        >
-          نص الآيات مباشرة
+        <button type="button" className={`form-tab${tab === "text" ? " active" : ""}`} onClick={() => setTab("text")}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          نصٌّ مُخصَّص
         </button>
       </div>
 
-      {!useManual ? (
-        <div className="space-y-2">
-          <label
-            className="block font-arabic text-sm"
-            style={{ color: "var(--gold-dark)" }}
-          >
-            نطاق الآيات (من — إلى)
-          </label>
-          <div className="flex gap-3 items-center">
-            <input
-              type="number"
-              min={1}
-              value={verseStart}
-              onChange={(e) => setVerseStart(Number(e.target.value))}
-              className="w-24 px-3 py-3 rounded-lg text-center"
-              style={{
-                background: "var(--surface, var(--cream-dark))",
-                border: "1px solid var(--border, var(--gold-dark))",
-                color: "var(--ink)",
-              }}
-            />
-            <span style={{ color: "var(--text-muted)" }}>—</span>
-            <input
-              type="number"
-              min={verseStart}
-              max={verseStart + 9}
-              value={verseEnd}
-              onChange={(e) => setVerseEnd(Number(e.target.value))}
-              className="w-24 px-3 py-3 rounded-lg text-center"
-              style={{
-                background: "var(--surface, var(--cream-dark))",
-                border: "1px solid var(--border, var(--gold-dark))",
-                color: "var(--ink)",
-              }}
-            />
-            <span className="font-arabic text-sm" style={{ color: "var(--text-muted)" }}>
-              (حد أقصى 10 آيات)
-            </span>
-          </div>
-          <p
-            className="font-arabic text-xs mt-1"
-            style={{ color: "var(--text-muted)" }}
-          >
-            ملاحظة: ستحتاج إلى توفير نصوص التفسير في مجلد data/tafsir/ للحصول على أفضل النتائج
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <label
-            className="block font-arabic text-sm"
-            style={{ color: "var(--gold-dark)" }}
-          >
-            الآيات (سطر واحد لكل آية — حتى 10 آيات)
-          </label>
-          <textarea
-            value={manualVerses}
-            onChange={(e) => setManualVerses(e.target.value)}
-            rows={5}
-            placeholder="أدخل كل آية في سطر مستقل&#10;مثال:&#10;بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ&#10;الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ"
-            className="w-full px-4 py-3 rounded-lg font-arabic text-lg leading-loose resize-none"
-            style={{
-              background: "var(--surface, var(--cream-dark))",
-              border: "1px solid var(--border, var(--gold-dark))",
-              color: "var(--ink)",
-              direction: "rtl",
-            }}
-            dir="rtl"
-          />
-          <div className="flex items-center gap-3">
-            <label
-              className="font-arabic text-sm"
-              style={{ color: "var(--gold-dark)" }}
+      {tab === "surah" ? (
+        <>
+          <div className="field">
+            <label className="field-label">السُّورة</label>
+            <select
+              className="select-field"
+              value={surahIdx}
+              onChange={e => changeSurah(Number(e.target.value))}
             >
-              رقم الآية الأولى:
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={verseStart}
-              onChange={(e) => setVerseStart(Number(e.target.value))}
-              className="w-20 px-3 py-2 rounded-lg text-center"
-              style={{
-                background: "var(--surface, var(--cream-dark))",
-                border: "1px solid var(--border, var(--gold-dark))",
-                color: "var(--ink)",
-              }}
+              {SURAHS.map(([num, ar], i) => (
+                <option key={num} value={i}>
+                  {num}. {ar}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label className="field-label">من الآية</label>
+              <input
+                type="number" min={1} max={maxVerse} className="input"
+                value={verseFrom}
+                onChange={e => {
+                  const v = Math.min(Number(e.target.value), maxVerse);
+                  setVerseFrom(v);
+                  if (verseTo < v) setVerseTo(v);
+                }}
+              />
+            </div>
+            <div className="field">
+              <label className="field-label">
+                إلى الآية{" "}
+                <span style={{ color: "var(--ink-3)", fontWeight: 400 }}>
+                  (max {maxVerse}، ١٠ آياتٍ حدًّا)
+                </span>
+              </label>
+              <input
+                type="number" min={verseFrom} max={Math.min(verseFrom + 9, maxVerse)} className="input"
+                value={verseTo}
+                onChange={e => {
+                  const v = Math.min(Number(e.target.value), verseFrom + 9, maxVerse);
+                  setVerseTo(Math.max(v, verseFrom));
+                }}
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="field">
+            <label className="field-label">الآيات — سطرٌ لكلّ آية (١٠ كحدٍّ أقصى)</label>
+            <textarea
+              className="textarea-field"
+              value={manualText}
+              onChange={e => setManualText(e.target.value)}
+              placeholder={"أدخل كل آية في سطر مستقل\nمثال:\nبِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ\nالْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ"}
+              dir="rtl"
             />
           </div>
-        </div>
+          <div className="field">
+            <label className="field-label">رقم الآية الأولى</label>
+            <input
+              type="number" min={1} className="input" style={{ maxWidth: 120 }}
+              value={manualStart}
+              onChange={e => setManualStart(Number(e.target.value))}
+            />
+          </div>
+        </>
       )}
 
-      {/* Language selector */}
-      <div className="space-y-2">
-        <label
-          className="block font-arabic text-sm"
-          style={{ color: "var(--gold-dark)" }}
-        >
-          لغة التدبر
-        </label>
-        <div className="flex gap-3">
-          {(
-            [
-              { value: "ar", label: "عربي فقط", labelFr: "Arabe" },
-              { value: "fr", label: "فرنسي فقط", labelFr: "Français" },
-              { value: "both", label: "عربي + فرنسي", labelFr: "Bilingue" },
-            ] as const
-          ).map((opt) => (
+      <div className="field">
+        <label className="field-label">عُمق التدبّر</label>
+        <div className="lang-pills">
+          {(["brief", "medium", "detailed"] as const).map(d => (
             <button
-              key={opt.value}
+              key={d}
               type="button"
-              onClick={() => setLanguage(opt.value)}
-              className="flex-1 px-3 py-2 rounded-lg font-arabic text-sm transition-all"
-              style={{
-                background: language === opt.value ? "var(--gold)" : "transparent",
-                color: language === opt.value ? "#fff" : "var(--text-muted)",
-                border: "1px solid var(--gold-dark)",
-              }}
+              className={`lang-pill${depth === d ? " active" : ""}`}
+              onClick={() => setDepth(d)}
             >
-              {opt.label}
+              {d === "brief" ? "موجزٌ" : d === "medium" ? "متوسّط" : "مُفصَّل"}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Submit */}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-4 rounded-xl font-arabic text-xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{
-          background: "linear-gradient(135deg, var(--gold-dark), var(--gold))",
-          color: "#fff",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {loading ? (
-          <span className="flex items-center justify-center gap-2">
-            <span className="loading-dot">•</span>
-            <span
-              className="loading-dot"
-              style={{ animationDelay: "0.2s" }}
-            >
-              •
-            </span>
-            <span
-              className="loading-dot"
-              style={{ animationDelay: "0.4s" }}
-            >
-              •
-            </span>
-            <span>جارٍ التدبر...</span>
+      <div className="field">
+        <label className="field-label">
+          مصادر التفسير
+          <span style={{ color: "var(--ink-3)", fontWeight: 400, marginRight: 6 }}>
+            ({selectedTafsirs.length === 0 ? "بدون تفسير" : `${selectedTafsirs.length} مصادر`})
           </span>
-        ) : (
-          "بدء التدبّر ✦"
-        )}
-      </button>
+        </label>
+        <div className="lang-pills">
+          {TAFSIRS.map(t => (
+            <button
+              key={t.name}
+              type="button"
+              className={`lang-pill${selectedTafsirs.includes(t.name) ? " active" : ""}`}
+              onClick={() => toggleTafsir(t.name)}
+            >
+              {t.labelAr}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="form-foot">
+        <span className="form-hint">سيُولَّد التدبّر مباشرةً بعد الإرسال</span>
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? (
+            <>
+              <span style={{ animation: "pulse-dot 1s infinite" }}>•</span>
+              جارٍ التوليد…
+            </>
+          ) : (
+            <>
+              ابدأ التدبُّر
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            </>
+          )}
+        </button>
+      </div>
     </form>
   );
 }
