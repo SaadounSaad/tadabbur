@@ -124,6 +124,14 @@ Outil de contemplation coranique basé sur la méthodologie de Farid Al-Ansari.
 - [x] Variables d'env Vercel : `ANTHROPIC_API_KEY` + `R2_PUBLIC_URL`
 - [x] Test API sur Vercel : 200 OK, cache MISS, rate limiting actif
 
+### Phase 11 — Persistance des résultats sur R2 (2026-04-27)
+- [x] Bucket R2 `tadabbur-results` créé (privé)
+- [x] Token API `tadabbur-results` avec Object Read & Write
+- [x] `src/lib/results-storage.ts` — S3 client, save/load/delete, index, fallback localStorage
+- [x] `src/app/api/results/save/route.ts` — POST endpoint
+- [x] `src/app/api/results/load/route.ts` — GET endpoint
+- [x] `page.tsx` — sauvegarde automatique après chaque tadabbur, chargement au démarrage, fusion localStorage+R2
+
 #### Non traité (hors scope ou complexe)
 - ~~Rate limiting APIs~~ ✅ implémenté
 - Validation serveur plage versets — client-side `max={maxVerse}` non-suffisant
