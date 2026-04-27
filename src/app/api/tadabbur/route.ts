@@ -147,11 +147,12 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
     }
 
     // --- Cache miss — call OpenRouter ---
-    const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY;
-    if (!openRouterKey)
-      return new Response(JSON.stringify({ error: "API key not configured" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const isOpenRouter = !!openRouterKey && openRouterKey.startsWith("sk-or-");
 
-    const isOpenRouter = !!process.env.OPENROUTER_API_KEY;
+    if (!openRouterKey && !anthropicKey)
+      return new Response(JSON.stringify({ error: "No API key configured — set OPENROUTER_API_KEY or ANTHROPIC_API_KEY" }), { status: 500, headers: { "Content-Type": "application/json" } });
 
     // Map our depth to model names
     const openRouterModel =
