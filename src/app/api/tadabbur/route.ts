@@ -158,7 +158,7 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
     const openRouterModel =
       depth === "detailed"
         ? "anthropic/claude-sonnet-4-6"
-        : "anthropic/claude-haiku-4-5-20251001";
+        : "anthropic/claude-3-5-haiku";
 
     const anthropicModel =
       depth === "detailed" ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
