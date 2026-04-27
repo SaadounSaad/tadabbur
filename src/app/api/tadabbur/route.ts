@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
 import { getTafsirForVerses, type TafsirName, type TafsirEntry } from "@/lib/tafsir-loader";
@@ -46,9 +45,9 @@ export async function POST(req: Request) {
       if (real.length > 0) resolvedVerses = real;
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY;
     if (!apiKey)
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }), { status: 500, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "No API key configured — set OPENROUTER_API_KEY or ANTHROPIC_API_KEY" }), { status: 500, headers: { "Content-Type": "application/json" } });
 
     const systemPrompt = loadSystemPrompt();
 
@@ -93,9 +92,6 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
 </request>${tafsirContext}${crossRefContext}${depthInstruction}
 
 طبّق المنهجية الكاملة وأنتج التدبر الشامل وفق المنهج المحدد. قسّم الآيات إلى مجالس منطقية واتبع الهيكل المطلوب لكل مجلس.`;
-
-    const model =
-      depth === "detailed" ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
 
     // --- Cache check ---
     const cacheKey = TadabburCache.makeKey({
@@ -150,27 +146,140 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
       });
     }
 
-    // --- Cache miss — call Anthropic ---
-    const client = new Anthropic({ apiKey });
+    // --- Cache miss — call OpenRouter ---
+    const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY;
+    if (!openRouterKey)
+      return new Response(JSON.stringify({ error: "API key not configured" }), { status: 500, headers: { "Content-Type": "application/json" } });
+
+    const isOpenRouter = !!process.env.OPENROUTER_API_KEY;
+
+    // Map our depth to model names
+    const openRouterModel =
+      depth === "detailed"
+        ? "anthropic/claude-sonnet-4-6"
+        : "anthropic/claude-haiku-4-5-20251001";
+
+    const anthropicModel =
+      depth === "detailed" ? "claude-sonnet-4-6" : "claude-haiku-4-5-20251001";
+
+    const encoder = new TextEncoder();
+    let accumulatedText = "";
+
+    if (isOpenRouter) {
+      // ── OpenRouter (OpenAI-compatible API) ────────────────────────────
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouterKey}`,
+          "HTTP-Referer": "https://qtadabbur.vercel.app",
+          "X-Title": "Tadabbur",
+        },
+        body: JSON.stringify({
+          model: openRouterModel,
+          max_tokens: 32000,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => "");
+        return new Response(JSON.stringify({ error: `OpenRouter error ${response.status}: ${errBody}` }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const readableStream = new ReadableStream({
+        async start(controller) {
+          try {
+            if (tafsirEntries.length > 0) {
+              const payload = tafsirEntries.map(({ name, labelAr, content }) => ({ name, labelAr, content }));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "context", tafsirs: payload })}\n\n`));
+            }
+            if (isPlaceholder) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "verses", verses: resolvedVerses })}\n\n`));
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error("No response body");
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() ?? "";
+
+              for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const data = line.slice(6).trim();
+                if (!data || data === "[DONE]") continue;
+                try {
+                  const parsed = JSON.parse(data);
+                  const content = parsed.choices?.[0]?.delta?.content || "";
+                  if (content) {
+                    accumulatedText += content;
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", text: content })}\n\n`));
+                  }
+                } catch { /* ignore partial */ }
+              }
+            }
+
+            // Store in cache
+            tadabburCache.set(cacheKey, {
+              text: accumulatedText,
+              tafsirEntries: tafsirEntries.map(({ name, labelAr, content }) => ({ name, labelAr, content })),
+              resolvedVerses: isPlaceholder ? resolvedVerses : null,
+              isPlaceholder,
+            });
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "Stream error";
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`));
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(readableStream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+          "X-Cache": "MISS",
+          "X-Provider": "openrouter",
+        },
+      });
+    }
+
+    // ── Fallback: direct Anthropic API ──────────────────────────────────
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey: openRouterKey });
     const stream = await client.messages.create({
-      model,
+      model: anthropicModel,
       max_tokens: 32000,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: userMessage }],
       stream: true,
     });
 
-    const encoder = new TextEncoder();
-    let accumulatedText = "";
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
-          // Send tafsir context so client can display sources section
           if (tafsirEntries.length > 0) {
             const payload = tafsirEntries.map(({ name, labelAr, content }) => ({ name, labelAr, content }));
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "context", tafsirs: payload })}\n\n`));
           }
-          // Send resolved verses so client can display the verse card
           if (isPlaceholder) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "verses", verses: resolvedVerses })}\n\n`));
           }
@@ -179,7 +288,6 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
               accumulatedText += event.delta.text;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", text: event.delta.text })}\n\n`));
             } else if (event.type === "message_stop") {
-              // Store in cache
               tadabburCache.set(cacheKey, {
                 text: accumulatedText,
                 tafsirEntries: tafsirEntries.map(({ name, labelAr, content }) => ({ name, labelAr, content })),
@@ -205,6 +313,7 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
         "X-Cache": "MISS",
+        "X-Provider": "anthropic",
       },
     });
   } catch (err) {
