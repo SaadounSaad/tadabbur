@@ -5,6 +5,7 @@ import { getTafsirForVerses, type TafsirName, type TafsirEntry } from "@/lib/taf
 import { getVerses } from "@/lib/quran-loader";
 import type { BahoussVerse } from "@/lib/bahouss-parser";
 import { tadabburCache, TadabburCache } from "@/lib/tadabbur-cache";
+import { saveResult } from "@/lib/results-storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -162,6 +163,7 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
 
     const encoder = new TextEncoder();
     let accumulatedText = "";
+    let completed = false;
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
@@ -179,6 +181,7 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
               accumulatedText += event.delta.text;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", text: event.delta.text })}\n\n`));
             } else if (event.type === "message_stop") {
+              completed = true;
               // Store in cache
               tadabburCache.set(cacheKey, {
                 text: accumulatedText,
@@ -193,6 +196,34 @@ ${resolvedVerses.map((v, i) => `الآية ${verseNumbers?.[i] ?? i + 1}: ${v}`)
           const msg = err instanceof Error ? err.message : "Stream error";
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", message: msg })}\n\n`));
         } finally {
+          // Persist to R2 even if client disconnected — fire-and-forget
+          if (completed && accumulatedText) {
+            const verseRange = verseNumbers && verseNumbers.length > 0
+              ? (verseNumbers.length === 1 ? String(verseNumbers[0]) : `${verseNumbers[0]}–${verseNumbers[verseNumbers.length - 1]}`)
+              : "";
+            saveResult({
+              id: cacheKey,
+              surah,
+              surahNumber: surahNumber ?? 0,
+              verseRange,
+              fromVerse: verseNumbers?.[0] ?? 0,
+              toVerse: verseNumbers?.[verseNumbers.length - 1] ?? 0,
+              depth: depth ?? "medium",
+              tafsirs: tafsirs ?? [],
+              timestamp: Date.now(),
+              text: accumulatedText,
+              resolvedVerses: isPlaceholder ? resolvedVerses : null,
+              contextTafsirs: tafsirEntries.map(({ name, labelAr, content }) => ({ name, labelAr, content })),
+              crossReferences: crossReferences?.map(v => ({
+                index: v.index,
+                surah: v.surah,
+                surahName: v.surahName,
+                ayah: v.ayah,
+                text: v.text,
+                morphResult: v.morphResult,
+              })),
+            }).catch(err => console.error("[tadabbur] R2 save error:", err));
+          }
           controller.close();
         }
       },
