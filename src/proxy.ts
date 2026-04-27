@@ -1,12 +1,12 @@
 /**
- * Next.js middleware — rate limiting for API routes.
+ * Next.js proxy — rate limiting for API routes.
  * Protects /api/tadabbur from excessive usage.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { defaultLimiter } from "@/lib/rate-limiter";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Only rate-limit the tadabbur API endpoint
   if (request.method !== "POST") return NextResponse.next();
   const url = new URL(request.url);
