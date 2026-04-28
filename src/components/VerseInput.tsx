@@ -8,6 +8,7 @@ const TAFSIRS: { name: TafsirName; labelAr: string }[] = [
   { name: "tabari",      labelAr: "الطبري" },
   { name: "fakhri-razi", labelAr: "الفخر الرازي" },
   { name: "ibn-kathir",  labelAr: "ابن كثير" },
+  { name: "fi-zilal",    labelAr: "في ظلال القرآن" },
 ];
 
 // [surahNumber, nameAr, verseCount]
