@@ -265,7 +265,6 @@ export function getTafsirForVerses(
   const names = selectedNames ?? (Object.keys(TAFSIR_LABELS) as TafsirName[]);
 
   for (const tafsirName of names) {
-    if (tafsirName === "fi-zilal") continue;
     const surahFile = path.join(
       "tafsir",
       tafsirName,
@@ -285,7 +284,7 @@ export function getTafsirForVerses(
     } else if (tafsirName === "muharrar") {
       extracted = extractMuharrar(rawContent, verseNumbers);
     } else {
-      // ibn-achour, fakhri-razi (and any future span-title tafsir)
+      // ibn-achour, fakhri-razi, fi-zilal (span-title format)
       extracted = extractSpanTitle(rawContent, verseNumbers);
     }
 
